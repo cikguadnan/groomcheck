@@ -1,56 +1,15 @@
-const video=document.getElementById('video');
-const scanBtn=document.getElementById('scanBtn');
-const resetBtn=document.getElementById('resetBtn');
-const cameraSwitch=document.getElementById('cameraSwitch');
-const cameraCard=document.getElementById('cameraCard');
-const resultCard=document.getElementById('resultCard');
-const resultIcon=document.getElementById('resultIcon');
-const resultTitle=document.getElementById('resultTitle');
-const resultReason=document.getElementById('resultReason');
-const cameraMessage=document.getElementById('cameraMessage');
-const overrideActions=document.getElementById('overrideActions');
-const teacherPass=document.getElementById('teacherPass');
-const teacherConfirm=document.getElementById('teacherConfirm');
-const checks={head:document.getElementById('headCheck'),fringe:document.getElementById('fringeCheck'),hair:document.getElementById('hairCheck')};
-let stream=null;let facingMode='environment';let scanning=false;
-
-async function startCamera(){
-  if(stream) stream.getTracks().forEach(t=>t.stop());
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facingMode},width:{ideal:1280},height:{ideal:1920}},audio:false});
-    video.srcObject=stream;
-    cameraMessage.innerHTML='<strong>Ready to scan</strong><span>Position one student\'s head inside the guide</span>';
-  }catch(e){
-    cameraMessage.innerHTML='<strong>Camera access needed</strong><span>Allow camera permission, then reload this page.</span>';
-    scanBtn.disabled=true;
-  }
-}
-
-function setCheck(el,state){el.textContent=state==='pass'?'✓':state==='review'?'!':'—';el.style.color=state==='pass'?'#34d399':state==='review'?'#f87171':'#94a3b8'}
-function clearState(){
-  cameraCard.classList.remove('pass','review');resultCard.className='result-card neutral';
-  resultIcon.textContent='◎';resultTitle.textContent='Ready';resultReason.textContent='Centre the student\'s head, then tap Scan.';
-  Object.values(checks).forEach(x=>setCheck(x,'neutral'));overrideActions.classList.add('hidden');resetBtn.classList.add('hidden');scanBtn.classList.remove('hidden');
-  cameraMessage.innerHTML='<strong>Ready to scan</strong><span>Position one student\'s head inside the guide</span>';
-}
-function renderResult(pass,reason){
-  const state=pass?'pass':'review';cameraCard.classList.add(state);resultCard.className=`result-card ${state}`;
-  resultIcon.textContent=pass?'✓':'!';resultTitle.textContent=pass?'Looks acceptable':'Teacher check needed';resultReason.textContent=reason;
-  setCheck(checks.head,'pass');setCheck(checks.fringe,pass?'pass':'review');setCheck(checks.hair,pass?'pass':'review');
-  cameraMessage.innerHTML=pass?'<strong>✓ Grooming check passed</strong><span>Teacher may continue to next student</span>':'<strong>Possible grooming issue</strong><span>Please verify visually before deciding</span>';
-  scanBtn.classList.add('hidden');resetBtn.classList.remove('hidden');if(!pass)overrideActions.classList.remove('hidden');
-}
-async function simulateScan(){
-  if(scanning)return;scanning=true;scanBtn.disabled=true;scanBtn.textContent='Analysing…';
-  cameraMessage.innerHTML='<strong>Analysing grooming…</strong><span>Keep the student's head inside the guide</span>';
-  await new Promise(r=>setTimeout(r,1200));
-  // V1 demo only. Replace this with real landmark / hair analysis in V2.
-  const pass=Math.random()>.4;
-  renderResult(pass,pass?'No obvious grooming issue detected in this V1 demo.':'Fringe or hair boundary may require a teacher check.');
-  scanBtn.disabled=false;scanBtn.textContent='Scan student';scanning=false;
-}
-scanBtn.addEventListener('click',simulateScan);resetBtn.addEventListener('click',clearState);
-cameraSwitch.addEventListener('click',async()=>{facingMode=facingMode==='environment'?'user':'environment';await startCamera()});
-teacherPass.addEventListener('click',()=>{overrideActions.classList.add('hidden');cameraCard.classList.remove('review');cameraCard.classList.add('pass');resultCard.className='result-card pass';resultIcon.textContent='✓';resultTitle.textContent='Passed by teacher';resultReason.textContent='Teacher override recorded locally for this scan.';cameraMessage.innerHTML='<strong>✓ Teacher approved</strong><span>Ready to continue</span>'});
-teacherConfirm.addEventListener('click',()=>{overrideActions.classList.add('hidden');resultTitle.textContent='Check confirmed';resultReason.textContent='Teacher confirmed that follow-up is required.';cameraMessage.innerHTML='<strong>Check confirmed</strong><span>Proceed according to school procedure</span>'});
-startCamera();
+import{FaceLandmarker,FilesetResolver}from'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/+esm';
+const $=id=>document.getElementById(id),video=$('video'),overlay=$('overlay'),ctx=overlay.getContext('2d'),scanBtn=$('scanBtn'),resetBtn=$('resetBtn'),cameraSwitch=$('cameraSwitch'),cameraCard=$('cameraCard'),resultCard=$('resultCard'),resultIcon=$('resultIcon'),resultTitle=$('resultTitle'),resultReason=$('resultReason'),cameraMessage=$('cameraMessage'),statusPill=$('statusPill'),overrideActions=$('overrideActions'),teacherPass=$('teacherPass'),teacherConfirm=$('teacherConfirm');
+const checks={head:$('headCheck'),position:$('positionCheck'),fringe:$('fringeCheck')};let stream,landmarker,lastResult=null,lastVideoTime=-1,facingMode='environment',running=true;
+function setCheck(el,state,text){el.textContent=text||(state==='pass'?'✓':state==='review'?'!':'—');el.style.color=state==='pass'?'#34d399':state==='review'?'#f87171':'#94a3b8'}
+async function initAI(){try{const vision=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm');landmarker=await FaceLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',delegate:'GPU'},runningMode:'VIDEO',numFaces:1,minFaceDetectionConfidence:.55,minFacePresenceConfidence:.55,minTrackingConfidence:.55});statusPill.textContent='AI LIVE';scanBtn.disabled=false;cameraMessage.innerHTML='<strong>Find a student</strong><span>Position one face inside the guide</span>';resultTitle.textContent='Ready';resultReason.textContent='Face landmark detector is running on this device.';requestAnimationFrame(detectLoop)}catch(e){console.error(e);statusPill.textContent='AI ERROR';cameraMessage.innerHTML='<strong>Detector could not load</strong><span>Check internet connection and reload</span>';resultReason.textContent='The face landmark model could not be loaded.'}}
+async function startCamera(){if(stream)stream.getTracks().forEach(t=>t.stop());try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facingMode},width:{ideal:1280},height:{ideal:1920}},audio:false});video.srcObject=stream;await video.play()}catch(e){cameraMessage.innerHTML='<strong>Camera access needed</strong><span>Allow camera permission and reload</span>'}}
+function eyeCenter(lm,ids){let x=0,y=0;ids.forEach(i=>{x+=lm[i].x;y+=lm[i].y});return{x:x/ids.length,y:y/ids.length}}
+function analyse(lm){const left=eyeCenter(lm,[33,133,159,145]),right=eyeCenter(lm,[362,263,386,374]),nose=lm[1],chin=lm[152],forehead=lm[10];const eyeY=(left.y+right.y)/2,eyeDistance=Math.abs(right.x-left.x),faceHeight=Math.abs(chin.y-forehead.y),cx=(left.x+right.x)/2;const centred=cx>.3&&cx<.7&&eyeY>.25&&eyeY<.62;const sizeOK=eyeDistance>.10&&faceHeight>.25;const straight=Math.abs(left.y-right.y)<.045;return{left,right,nose,forehead,chin,centred,sizeOK,straight,valid:centred&&sizeOK&&straight}}
+function draw(a){overlay.width=video.videoWidth;overlay.height=video.videoHeight;ctx.clearRect(0,0,overlay.width,overlay.height);if(!a)return;const W=overlay.width,H=overlay.height;ctx.strokeStyle=a.valid?'#34d399':'#fbbf24';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=Math.max(2,W/250);ctx.setLineDash([10,8]);const y=((a.left.y+a.right.y)/2)*H;ctx.beginPath();ctx.moveTo(a.left.x*W-40,y);ctx.lineTo(a.right.x*W+40,y);ctx.stroke();ctx.setLineDash([]);[a.left,a.right,a.nose].forEach(p=>{ctx.beginPath();ctx.arc(p.x*W,p.y*H,5,0,Math.PI*2);ctx.fill()})}
+async function detectLoop(){if(running&&landmarker&&video.readyState>=2&&video.currentTime!==lastVideoTime){lastVideoTime=video.currentTime;try{const r=landmarker.detectForVideo(video,performance.now());if(r.faceLandmarks?.length){const a=analyse(r.faceLandmarks[0]);lastResult=a;draw(a);setCheck(checks.head,'pass','✓');setCheck(checks.position,a.valid?'pass':'review',a.valid?'✓':'Adjust');setCheck(checks.fringe,'neutral','Ready');cameraMessage.innerHTML=a.valid?'<strong>Face locked</strong><span>Hold steady and tap Scan</span>':'<strong>Adjust position</strong><span>Face camera straight-on and move into the guide</span>'}else{lastResult=null;draw(null);setCheck(checks.head,'review','No face');setCheck(checks.position,'neutral');setCheck(checks.fringe,'neutral');cameraMessage.innerHTML='<strong>No face detected</strong><span>Move one student into the guide</span>'}}catch(e){console.warn(e)}}requestAnimationFrame(detectLoop)}
+function showReview(reason){cameraCard.classList.remove('pass');cameraCard.classList.add('review');resultCard.className='result-card review';resultIcon.textContent='!';resultTitle.textContent='Teacher check needed';resultReason.textContent=reason;overrideActions.classList.remove('hidden');scanBtn.classList.add('hidden');resetBtn.classList.remove('hidden')}
+function scan(){if(!lastResult){showReview('No clear face was detected. Reposition the student and scan again.');return}if(!lastResult.valid){showReview('The face angle, distance or position is not suitable for a reliable grooming check.');return}setCheck(checks.fringe,'review','Inspect');showReview('Face and eye landmarks are locked. Inspect whether hair crosses the highlighted eye/fringe zone. V2 does not yet classify hair pixels automatically.')}
+function clearState(){cameraCard.classList.remove('pass','review');resultCard.className='result-card neutral';resultIcon.textContent='◎';resultTitle.textContent='Ready';resultReason.textContent='Position one student and scan.';overrideActions.classList.add('hidden');resetBtn.classList.add('hidden');scanBtn.classList.remove('hidden');setCheck(checks.fringe,'neutral','Ready')}
+scanBtn.onclick=scan;resetBtn.onclick=clearState;cameraSwitch.onclick=async()=>{facingMode=facingMode==='environment'?'user':'environment';await startCamera()};teacherPass.onclick=()=>{overrideActions.classList.add('hidden');cameraCard.classList.remove('review');cameraCard.classList.add('pass');resultCard.className='result-card pass';resultIcon.textContent='✓';resultTitle.textContent='Passed by teacher';resultReason.textContent='Teacher visually confirmed the grooming check.';setCheck(checks.fringe,'pass','✓')};teacherConfirm.onclick=()=>{overrideActions.classList.add('hidden');resultTitle.textContent='Check confirmed';resultReason.textContent='Teacher confirmed that follow-up is required.'};
+await startCamera();await initAI();
