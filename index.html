@@ -1,64 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#08111f" />
-  <title>GroomCheck</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <main class="app" id="app">
-    <header class="topbar">
-      <div>
-        <div class="brand">GroomCheck</div>
-        <div class="subtitle">School attire & grooming assistant</div>
-      </div>
-      <button id="cameraSwitch" class="icon-btn" aria-label="Switch camera">↺</button>
-    </header>
-
-    <section class="camera-card" id="cameraCard">
-      <video id="video" autoplay playsinline muted></video>
-      <div class="shade"></div>
-      <div class="face-guide" aria-hidden="true">
-        <span class="corner tl"></span><span class="corner tr"></span>
-        <span class="corner bl"></span><span class="corner br"></span>
-        <div class="eye-line"><span>EYE / FRINGE LINE</span></div>
-      </div>
-      <div class="camera-message" id="cameraMessage">
-        <strong>Ready to scan</strong>
-        <span>Position one student's head inside the guide</span>
-      </div>
-      <div class="status-pill" id="statusPill">LIVE</div>
-    </section>
-
-    <section class="result-card neutral" id="resultCard">
-      <div class="result-icon" id="resultIcon">◎</div>
-      <div class="result-copy">
-        <div class="result-label">GROOMING STATUS</div>
-        <h1 id="resultTitle">Ready</h1>
-        <p id="resultReason">Centre the student's head, then tap Scan.</p>
-      </div>
-    </section>
-
-    <section class="checks" id="checks">
-      <div class="check-row"><span>Face / head visible</span><b id="headCheck">—</b></div>
-      <div class="check-row"><span>Fringe / eye area</span><b id="fringeCheck">—</b></div>
-      <div class="check-row"><span>Hair boundary</span><b id="hairCheck">—</b></div>
-    </section>
-
-    <section class="actions">
-      <button class="primary" id="scanBtn">Scan student</button>
-      <div class="override hidden" id="overrideActions">
-        <button class="secondary pass" id="teacherPass">Teacher: Pass</button>
-        <button class="secondary review" id="teacherConfirm">Confirm Check</button>
-      </div>
-      <button class="text-btn hidden" id="resetBtn">Scan next student</button>
-    </section>
-
-    <p class="notice">V1 prototype — simulated grooming assessment. Teacher judgement is final. No photo is saved.</p>
-  </main>
-
-  <script src="app.js"></script>
-</body>
-</html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#08111f"><title>GroomCheck V2</title><link rel="stylesheet" href="style.css"></head>
+<body><main class="app" id="app"><header class="topbar"><div><div class="brand">GroomCheck <small>V2</small></div><div class="subtitle">Live grooming screening assistant</div></div><button id="cameraSwitch" class="icon-btn" aria-label="Switch camera">↺</button></header>
+<section class="camera-card" id="cameraCard"><video id="video" autoplay playsinline muted></video><canvas id="overlay"></canvas><div class="shade"></div><div class="face-guide" aria-hidden="true"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span><div class="eye-line"><span>EYE / FRINGE LINE</span></div></div><div class="camera-message" id="cameraMessage"><strong>Loading detector…</strong><span>Please wait</span></div><div class="status-pill" id="statusPill">AI STARTING</div></section>
+<section class="result-card neutral" id="resultCard"><div class="result-icon" id="resultIcon">◎</div><div class="result-copy"><div class="result-label">SCREENING STATUS</div><h1 id="resultTitle">Getting ready</h1><p id="resultReason">Loading on-device face detection.</p></div></section>
+<section class="checks"><div class="check-row"><span>Face detected</span><b id="headCheck">—</b></div><div class="check-row"><span>Face position</span><b id="positionCheck">—</b></div><div class="check-row"><span>Eye / fringe zone</span><b id="fringeCheck">—</b></div></section>
+<section class="actions"><button class="primary" id="scanBtn" disabled>Scan student</button><div class="override hidden" id="overrideActions"><button class="secondary pass" id="teacherPass">Teacher: Pass</button><button class="secondary review" id="teacherConfirm">Confirm Check</button></div><button class="text-btn hidden" id="resetBtn">Scan next student</button></section>
+<p class="notice">V2 uses on-device face landmarks to validate the scan and mark the eye/fringe reference zone. It does not identify students or save photos. Grooming decisions remain with the teacher.</p></main>
+<script type="module" src="app.js"></script></body></html>
